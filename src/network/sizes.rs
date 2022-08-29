@@ -26,12 +26,6 @@ pub const fn idx(sizes: &[usize], idx: usize) -> usize {
     sizes[idx]
 }
 
-pub const fn inputs(sizes: &[usize]) -> usize {
-    let mut total = 0;
-    total += sizes[0];
-    total
-}
-
 pub const fn outputs(sizes: &[usize]) -> usize {
     idx(sizes, sizes.len() - 1)
 }

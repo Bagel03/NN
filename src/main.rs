@@ -1,5 +1,6 @@
 #![feature(adt_const_params)]
 #![feature(generic_const_exprs)]
+#![feature(inherent_associated_types)]
 #![feature(const_for)]
 // #![feature(generic_arg_infer)]
 #![feature(const_mut_refs)]

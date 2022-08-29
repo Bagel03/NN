@@ -1,4 +1,6 @@
+mod back_propagation;
 mod calculate;
+mod cost;
 pub mod sizes;
 use sizes::*;
 
