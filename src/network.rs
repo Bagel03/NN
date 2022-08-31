@@ -1,42 +1,52 @@
-use crate::layer::Layer;
+mod back_propagation;
+mod calculate;
+mod cost;
+pub mod sizes;
+use sizes::*;
 
-#[derive(Debug)]
-pub struct Network {
-    layers: Vec<Layer>,
-    inputs: usize,
+pub struct Network<const SIZES: &'static [usize]>
+where
+    [(); num_weights(SIZES)]:,
+    [(); num_nodes(SIZES)]:,
+    [(); SIZES.len()]:,
+{
+    weights: [f64; num_weights(SIZES)],
+    biases: [f64; num_nodes(SIZES)],
+
+    weight_costs: [f64; num_weights(SIZES)],
+    bias_costs: [f64; num_nodes(SIZES)],
+
+    // Lookup        bias   weight
+    layer_indices: [(usize, usize); SIZES.len()],
 }
 
-impl Network {
-    pub fn new<const T: usize>(layer_sizes: [usize; T]) -> Network {
-        let mut layers = Vec::new();
-        for layer in 1..layer_sizes.len() {
-            layers.push(Layer::new(layer_sizes[layer - 1], layer_sizes[layer]));
-        }
+impl<const SIZES: &'static [usize]> Network<SIZES>
+where
+    [(); num_weights(SIZES)]:,
+    [(); num_nodes(SIZES)]:,
+    [(); SIZES.len()]:,
+{
+    pub fn new() -> Network<SIZES> {
+        Network::<SIZES> {
+            weights: [0.; num_weights(SIZES)],
+            biases: [0.; num_nodes(SIZES)],
 
-        Network {
-            layers,
-            inputs: layer_sizes[0],
+            weight_costs: [0.; num_weights(SIZES)],
+            bias_costs: [0.; num_nodes(SIZES)],
+
+            layer_indices: Self::calc_layer_indices(),
         }
     }
 
-    pub fn calculate_outputs<const T: usize>(&self, inputs: [f64; T]) -> Vec<f64> {
-        assert_eq!(inputs.len(), self.inputs, "Wrong number of inputs");
-
-        let mut current_outputs = Vec::from(inputs);
-        for layer in self.layers.iter() {
-            current_outputs = layer.calculate_outputs(&current_outputs);
+    const fn calc_layer_indices() -> [(usize, usize); SIZES.len()] {
+        let mut arr = [(0, 0); SIZES.len()];
+        let mut i = 1;
+        while i < SIZES.len() {
+            arr[i].0 = arr[i - 1].0 + SIZES[i];
+            arr[i].1 = arr[i - 1].1 + SIZES[i] * SIZES[i - 1];
+            i += 1;
         }
 
-        current_outputs
-    }
-
-    pub fn total_cost<const T: usize>(&self, inputs: [f64; T], expected_outputs: [f64; T]) -> f64 {
-        let outputs = self.calculate_outputs(inputs);
-        outputs
-            .iter()
-            .enumerate()
-            .map(|(i, num)| Layer::node_cost(num, &expected_outputs[i]))
-            .reduce(|accum, num| accum + num)
-            .unwrap()
+        arr
     }
 }
