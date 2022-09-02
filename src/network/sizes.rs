@@ -27,5 +27,5 @@ pub const fn idx(sizes: &[usize], idx: usize) -> usize {
 }
 
 pub const fn outputs(sizes: &[usize]) -> usize {
-    idx(sizes, sizes.len() - 1)
+    sizes[sizes.len() - 1]
 }

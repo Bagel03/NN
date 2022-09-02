@@ -9,6 +9,16 @@ where
     pub expected: [f64; outputs(SIZES)],
 }
 
+impl<const SIZES: &'static [usize]> DataPoint<SIZES>
+where
+    [(); idx(SIZES, 0)]:,
+    [(); outputs(SIZES)]:,
+{
+    pub fn new(inputs: [f64; idx(SIZES, 0)], expected: [f64; outputs(SIZES)]) -> DataPoint<SIZES> {
+        DataPoint::<SIZES> { inputs, expected }
+    }
+}
+
 impl<const SIZES: &'static [usize]> super::Network<SIZES>
 where
     [(); num_weights(SIZES)]:,
