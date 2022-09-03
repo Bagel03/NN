@@ -31,7 +31,6 @@ where
                     [self.get_weight_index(layer + 1, output, node)]
                     * self.node_values[self.get_node_index(layer + 1, output)];
             }
-            println!("{}", output_derivative);
             self.node_values[node_idx] =
                 output_derivative * Activation::derivative(weighted_inputs[node_idx]);
         }
@@ -49,6 +48,10 @@ where
             self.node_values[idx] = self
                 .cost_derivative(actual_outputs[idx], expected_outputs[node])
                 * Activation::derivative(weighted_inputs[idx]);
+            // println!(
+            //     "activation nv {} {}",
+            //     actual_outputs[idx], expected_outputs[node]
+            // );
         }
     }
 
@@ -66,6 +69,7 @@ where
                     * self.node_values[out_idx];
             }
             // Bias
+            // println!("{}", self.node_values[out_idx]);
             self.bias_costs[out_idx] += self.node_values[out_idx];
         }
     }

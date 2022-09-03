@@ -12,26 +12,26 @@ use crate::network::{cost::DataPoint, *};
 mod activation;
 mod network;
 
-const LAYER_SIZES: &[usize] = &[1, 1];
+const LAYER_SIZES: &[usize] = &[2, 3, 2];
 
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
 
     let mut rng = rand::thread_rng();
 
-    // let mut training_data: [DataPoint<{ &LAYER_SIZES }>; 100] =
-    //     [DataPoint::new([0., 0.], [0.]); 100];
-    // for i in 0..training_data.len() {
-    //     let x = rng.gen();
-    //     let y = rng.gen();
-    //     let is_valid = if (x * y) < 0.25 { 1. } else { 0. };
-    //     training_data[i] = DataPoint::new([x, y], [is_valid]);
-    // }
-    let mut training_data: [DataPoint<{ &LAYER_SIZES }>; 100] = [DataPoint::new([0.], [0.]); 100];
+    let mut training_data: [DataPoint<{ &LAYER_SIZES }>; 100] =
+        [DataPoint::new([0., 0.], [0., 0.]); 100];
     for i in 0..training_data.len() {
-        let x = (rng.gen::<f64>() - 0.1) / 2.;
-        training_data[i] = DataPoint::new([x], [(x + 0.1) * 2.]);
+        let x = rng.gen();
+        let y = rng.gen();
+        let is_valid = if (x * y) < 0.25 { 1. } else { 0. };
+        training_data[i] = DataPoint::new([x, y], [is_valid, -is_valid + 1.]);
     }
+    // let mut training_data: [DataPoint<{ &LAYER_SIZES }>; 100] = [DataPoint::new([0.], [0.]); 100];
+    // for i in 0..training_data.len() {
+    //     let x = (rng.gen::<f64>() - 0.1) / 2.;
+    //     training_data[i] = DataPoint::new([x], [(x + 0.1) * 2.]);
+    // }
 
     println!("POINT: {:#?}", training_data[0]);
 
@@ -40,11 +40,10 @@ fn main() {
         "Start: {:?}",
         network.calculate_outputs(training_data[0].inputs)
     );
+    network.learn(training_data, 0.01);
 
-    let mut i = 0;
-    loop {
+    for i in 0..100000 {
         network.learn([training_data[0]], 10.);
-        i += 1;
         if (i % 10000 == 0) {
             print!(
                 "COST({}): {:.5}\t",

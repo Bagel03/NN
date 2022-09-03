@@ -43,7 +43,7 @@ where
         let results = self.calculate_all_with_weighted_inputs(inputs).0;
         let mut outputs = [0.; outputs(SIZES)];
         for i in 0..outputs.len() {
-            outputs[i] = results[results.len() - i - 1];
+            outputs[i] = results[results.len() - outputs.len() + i];
         }
         outputs
     }
