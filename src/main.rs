@@ -4,29 +4,86 @@
 #![feature(const_for)]
 // #![feature(generic_arg_infer)]
 #![feature(const_mut_refs)]
+#![allow(incomplete_features)]
+
+use rand::Rng;
 
 use crate::network::{cost::DataPoint, *};
 mod activation;
 mod network;
 
+const LAYER_SIZES: &[usize] = &[1, 1];
+
 fn main() {
-    const layer_sizes: &[usize] = &[2, 3, 2];
-    let training_data: [DataPoint<{ &layer_sizes }>; 4] = [
-        DataPoint::new([0., 1.], [1., 0.]),
-        DataPoint::new([1., 0.], [1., 0.]),
-        DataPoint::new([1., 1.], [1., 0.]),
-        DataPoint::new([0., 0.], [0., 1.]),
-    ];
+    std::env::set_var("RUST_BACKTRACE", "1");
 
-    let mut network = Network::<{ &layer_sizes }>::new();
+    let mut rng = rand::thread_rng();
 
-    for i in 0..5000 {
-        network.learn([], 0.01);
+    // let mut training_data: [DataPoint<{ &LAYER_SIZES }>; 100] =
+    //     [DataPoint::new([0., 0.], [0.]); 100];
+    // for i in 0..training_data.len() {
+    //     let x = rng.gen();
+    //     let y = rng.gen();
+    //     let is_valid = if (x * y) < 0.25 { 1. } else { 0. };
+    //     training_data[i] = DataPoint::new([x, y], [is_valid]);
+    // }
+    let mut training_data: [DataPoint<{ &LAYER_SIZES }>; 100] = [DataPoint::new([0.], [0.]); 100];
+    for i in 0..training_data.len() {
+        let x = (rng.gen::<f64>() - 0.1) / 2.;
+        training_data[i] = DataPoint::new([x], [(x + 0.1) * 2.]);
     }
+
+    println!("POINT: {:#?}", training_data[0]);
+
+    let mut network = Network::<{ &LAYER_SIZES }>::new();
+    println!(
+        "Start: {:?}",
+        network.calculate_outputs(training_data[0].inputs)
+    );
+
+    let mut i = 0;
+    loop {
+        network.learn([training_data[0]], 10.);
+        i += 1;
+        if (i % 10000 == 0) {
+            print!(
+                "COST({}): {:.5}\t",
+                i / 10000,
+                network.total_cost(training_data)
+            );
+        }
+    }
+
+    println!(
+        "End: {:?}",
+        network.calculate_outputs(training_data[0].inputs)
+    );
 
     // println!("{:#?}", &network);
 
-    let res = network.calculate_outputs([0., 1.]);
+    let original_cost = network.total_cost(training_data);
+    return;
+    // loop {
+    //     network.learn(training_data, 0.1);
 
-    println!("{:#?}", &res);
+    //     let cost = network.total_cost(training_data);
+
+    //     println!("{:.5}:  {}", original_cost, cost);
+    //     i += 1;
+
+    //     // if i > 100 {
+    //     //     break;
+    // }
+    // // }
+
+    // println!("{:#?}", &network);
+
+    // let res = (
+    //     network.calculate_all_with_weighted_inputs([1., 0.]),
+    //     network.calculate_outputs([1., 0.]),
+    //     // network.calculate_outputs([0., 1.]),
+    //     // network.calculate_outputs([1., 1.]),
+    // );
+    // println!("{:#?}, {:#?}", &res.0, res.1);
+    // println!("{:#?}", &network.total_cost(training_data))
 }

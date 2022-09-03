@@ -1,5 +1,6 @@
 use super::sizes::*;
 
+#[derive(Clone, Copy, Debug)]
 pub struct DataPoint<const SIZES: &'static [usize]>
 where
     [(); idx(SIZES, 0)]:,
@@ -31,15 +32,15 @@ where
         let outputs = self.calculate_outputs(data_point.inputs);
         let mut cost = 0.;
         for i in 0..outputs.len() {
-            let err = data_point.expected[i] - outputs[i];
+            let err = outputs[i] - data_point.expected[i];
             cost += err * err;
         }
 
-        cost * 0.5
+        cost
     }
 
     pub fn cost_derivative(&self, actual_output: f64, expected_output: f64) -> f64 {
-        actual_output - expected_output
+        2. * (actual_output - expected_output)
     }
 
     pub fn total_cost<const T: usize>(&self, data_points: [DataPoint<SIZES>; T]) -> f64 {

@@ -2,15 +2,19 @@ pub mod back_propagation;
 pub mod calculate;
 pub mod cost;
 pub mod sizes;
+use std::ptr::write_unaligned;
+
 use rand::prelude::*;
 use sizes::*;
+
+#[derive(Debug)]
 pub struct Network<const SIZES: &'static [usize]>
 where
     [(); num_weights(SIZES)]:,
     [(); num_nodes(SIZES)]:,
     [(); SIZES.len()]:,
 {
-    weights: [f64; num_weights(SIZES)],
+    pub weights: [f64; num_weights(SIZES)],
     biases: [f64; num_nodes(SIZES)],
 
     weight_costs: [f64; num_weights(SIZES)],
@@ -32,37 +36,48 @@ where
             weights: [0.; num_weights(SIZES)],
             biases: [0.; num_nodes(SIZES)],
 
-            weight_costs: [0.; num_weights(SIZES)],
-            bias_costs: [0.; num_nodes(SIZES)],
-            node_values: [0.; num_nodes(SIZES)],
+            weight_costs: [1.; num_weights(SIZES)],
+            bias_costs: [1.; num_nodes(SIZES)],
+            node_values: [1.; num_nodes(SIZES)],
 
             layer_indices: Self::calc_layer_indices(),
         };
 
-        n.weight_costs = n.random_weights();
+        (n.weights, n.biases) = n.random_weights_and_biases();
         n
     }
 
-    fn random_weights(&self) -> [f64; num_weights(SIZES)] {
-        let mut results = [0.; num_weights(SIZES)];
+    fn random_weights_and_biases(&self) -> ([f64; num_weights(SIZES)], [f64; num_nodes(SIZES)]) {
+        let mut weights = [0.; num_weights(SIZES)];
+        let mut biases = [0.; num_nodes(SIZES)];
         let mut rng = thread_rng();
 
-        for layer in 0..(SIZES.len() - 1) {
-            for input_node in 0..idx(SIZES, layer) {
-                for output_node in 0..idx(SIZES, layer + 1) {
-                    results[self.get_weight_index(layer, output_node, input_node)] = rng.gen();
+        for layer in 1..(SIZES.len()) {
+            for node in 0..idx(SIZES, layer) {
+                for input in 0..idx(SIZES, layer - 1) {
+                    weights[self.get_weight_index(layer, node, input)] =
+                        rng.gen::<f64>() / (idx(SIZES, layer - 1) as f64).sqrt();
                 }
+
+                // biases[self.get_node_index(layer, node)] = rng.gen();
             }
         }
-        results
+
+        (weights, biases)
     }
 
-    const fn calc_layer_indices() -> [(usize, usize); SIZES.len()] {
+    pub const fn calc_layer_indices() -> [(usize, usize); SIZES.len()] {
         let mut arr = [(0, 0); SIZES.len()];
         let mut i = 1;
         while i < SIZES.len() {
-            arr[i].0 = arr[i - 1].0 + SIZES[i];
-            arr[i].1 = arr[i - 1].1 + SIZES[i] * SIZES[i - 1];
+            // Biases
+            arr[i].0 = arr[i - 1].0 + SIZES[i - 1];
+            // Weights
+            if i == 1 {
+                arr[i].1 = 0;
+            } else {
+                arr[i].1 = arr[i - 1].1 + SIZES[i - 1] * SIZES[i - 2];
+            }
             i += 1;
         }
 
@@ -77,6 +92,6 @@ where
     #[inline]
     pub fn get_weight_index(&self, layer: usize, node: usize, input: usize) -> usize {
         // Where the layer starts   +  number of connections per node   * node index + input index
-        self.layer_indices[layer].1 + (SIZES[layer - 1] * SIZES[layer]) * node + input
+        self.layer_indices[layer].1 + (SIZES[layer - 1]) * node + input
     }
 }

@@ -12,9 +12,9 @@ where
     fn update_weights_and_biases(&mut self, learn_rate: f64) {
         for i in 0..self.weights.len() {
             self.weights[i] -= self.weight_costs[i] * learn_rate;
-            if i < self.biases.len() {
-                self.biases[i] -= self.bias_costs[i] * learn_rate;
-            }
+        }
+        for i in 0..self.biases.len() {
+            self.biases[i] -= self.bias_costs[i] * learn_rate;
         }
     }
 
@@ -31,6 +31,7 @@ where
                     [self.get_weight_index(layer + 1, output, node)]
                     * self.node_values[self.get_node_index(layer + 1, output)];
             }
+            println!("{}", output_derivative);
             self.node_values[node_idx] =
                 output_derivative * Activation::derivative(weighted_inputs[node_idx]);
         }
@@ -65,11 +66,16 @@ where
                     * self.node_values[out_idx];
             }
             // Bias
-            self.bias_costs[out_idx] = self.node_values[out_idx];
+            self.bias_costs[out_idx] += self.node_values[out_idx];
         }
     }
 
     pub fn learn<const T: usize>(&mut self, data: [DataPoint<SIZES>; T], learn_rate: f64) {
+        // Reset all node values and weight/bias cost
+        self.bias_costs = [0.; num_nodes(SIZES)];
+        self.weight_costs = [0.; num_weights(SIZES)];
+        self.node_values = [0.; num_nodes(SIZES)];
+
         // Could make this multithreaded
         for data_point in data {
             let (actual_outputs, weighted_inputs) =
@@ -82,21 +88,12 @@ where
             );
             self.calculate_layer_weight_and_bias_costs(SIZES.len() - 1, actual_outputs);
 
-            for layer in (0..(SIZES.len() - 1)).rev() {
+            for layer in (1..(SIZES.len() - 1)).rev() {
                 self.calculate_hidden_layer_node_values(layer, weighted_inputs);
                 self.calculate_layer_weight_and_bias_costs(layer, actual_outputs)
             }
         }
 
         self.update_weights_and_biases(learn_rate / T as f64);
-
-        // Reset all node values and weight/bias cost
-        for i in 0..num_weights(SIZES) {
-            if i < num_nodes(SIZES) {
-                self.bias_costs[i] = 0.;
-                self.node_values[i] = 0.;
-            }
-            self.weight_costs[i] = 0.;
-        }
     }
 }
