@@ -1,31 +1,16 @@
-pub struct Activation {}
+use std::fmt;
+pub mod relu;
+pub mod sigmoid;
+pub mod softmax;
 
-// CHANGE THIS
-impl Activation {
-    /***************** SIGMOID ******************/
-    pub fn function(value: f64) -> f64 {
-        1. / (1. + std::f64::consts::E.powf(-value))
+#[derive(Clone, Copy)]
+pub struct Activation {
+    pub function: fn(inputs: &Vec<f64>, into: &mut Vec<f64>),
+    pub derivative: fn(inputs: &Vec<f64>) -> Vec<f64>,
+}
+
+impl fmt::Debug for Activation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Activation").finish()
     }
-
-    pub fn derivative(value: f64) -> f64 {
-        let activation = Activation::function(value);
-        activation * (1. - activation)
-    }
-
-    /***************** RELU ******************/
-    // pub fn function(value: f64) -> f64 {
-    //     if value > 0. {
-    //         value
-    //     } else {
-    //         0.
-    //     }
-    // }
-
-    // pub fn derivative(value: f64) -> f64 {
-    //     if value > 0. {
-    //         1.
-    //     } else {
-    //         0.
-    //     }
-    // }
 }

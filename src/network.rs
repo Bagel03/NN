@@ -1,97 +1,129 @@
-pub mod back_propagation;
-pub mod calculate;
 pub mod cost;
-pub mod sizes;
-use std::ptr::write_unaligned;
+pub mod data;
+pub mod layer;
+pub mod utils;
 
-use rand::prelude::*;
-use sizes::*;
+use data::DataPointRunData;
+use layer::Layer;
+
+use crate::activation::Activation;
+
+use self::{cost::Cost, utils::max_idx};
 
 #[derive(Debug)]
-pub struct Network<const SIZES: &'static [usize]>
-where
-    [(); num_weights(SIZES)]:,
-    [(); num_nodes(SIZES)]:,
-    [(); SIZES.len()]:,
-{
-    pub weights: [f64; num_weights(SIZES)],
-    biases: [f64; num_nodes(SIZES)],
-
-    weight_costs: [f64; num_weights(SIZES)],
-    bias_costs: [f64; num_nodes(SIZES)],
-    node_values: [f64; num_nodes(SIZES)],
-
-    // Lookup        bias   weight
-    layer_indices: [(usize, usize); SIZES.len()],
+pub struct DataPoint {
+    pub inputs: Vec<f64>,
+    pub correct_outputs: Vec<f64>,
 }
 
-impl<const SIZES: &'static [usize]> Network<SIZES>
-where
-    [(); num_weights(SIZES)]:,
-    [(); num_nodes(SIZES)]:,
-    [(); SIZES.len()]:,
-{
-    pub fn new() -> Network<SIZES> {
-        let mut n = Network::<SIZES> {
-            weights: [0.; num_weights(SIZES)],
-            biases: [0.; num_nodes(SIZES)],
+pub struct LearnResults {
+    pub accuracy: f64,
+    pub average_cost: f64,
+}
 
-            weight_costs: [1.; num_weights(SIZES)],
-            bias_costs: [1.; num_nodes(SIZES)],
-            node_values: [1.; num_nodes(SIZES)],
+#[derive(Debug)]
+pub struct Network {
+    pub layer_sizes: Vec<usize>,
+    pub layers: Vec<Layer>,
+    pub total_nodes: usize,
+}
 
-            layer_indices: Self::calc_layer_indices(),
+impl Network {
+    pub fn new(
+        layer_sizes: Vec<usize>,
+        activation: Activation,
+        output_activation: Activation,
+    ) -> Network {
+        let mut layers = Vec::with_capacity(layer_sizes.len() - 1);
+
+        let mut total_nodes = 0;
+        for i in 1..layer_sizes.len() {
+            layers.push(Layer::new(
+                i - 1,
+                layer_sizes[i - 1],
+                layer_sizes[i],
+                activation,
+            ));
+            total_nodes += layer_sizes[i];
+        }
+
+        layers.last_mut().unwrap().activation = output_activation;
+
+        Network {
+            layers,
+            layer_sizes,
+            total_nodes,
+        }
+    }
+
+    pub fn get_output_layer(&mut self) -> &mut Layer {
+        self.layers.last_mut().unwrap()
+    }
+
+    pub fn feed_forward(&self, inputs: &Vec<f64>) -> DataPointRunData {
+        let mut data = DataPointRunData::new(&self, inputs.to_owned());
+        let data_ref = &mut data;
+
+        for layer in self.layers.iter() {
+            layer.feed_forward(data_ref);
+        }
+
+        data
+    }
+
+    pub fn train(
+        &mut self,
+        data_points: &Vec<DataPoint>,
+        learn_rate: f64,
+        regularization: f64,
+        momentum: f64,
+        store_results: bool,
+    ) -> Option<LearnResults> {
+        // Have to keep this
+        let len = data_points.len();
+        let mut results = LearnResults {
+            accuracy: 0.,
+            average_cost: 0.,
         };
 
-        (n.weights, n.biases) = n.random_weights_and_biases();
-        n
-    }
+        for data_point in data_points {
+            let mut network_data = self.feed_forward(&data_point.inputs);
 
-    fn random_weights_and_biases(&self) -> ([f64; num_weights(SIZES)], [f64; num_nodes(SIZES)]) {
-        let mut weights = [0.; num_weights(SIZES)];
-        let mut biases = [0.; num_nodes(SIZES)];
-        let mut rng = thread_rng();
+            self.get_output_layer()
+                .calc_output_node_values(&mut network_data, &data_point.correct_outputs);
+            self.get_output_layer().calc_gradients(&network_data);
 
-        for layer in 1..(SIZES.len()) {
-            for node in 0..idx(SIZES, layer) {
-                for input in 0..idx(SIZES, layer - 1) {
-                    weights[self.get_weight_index(layer, node, input)] =
-                        rng.gen::<f64>() / (idx(SIZES, layer - 1) as f64).sqrt();
-                }
-
-                // biases[self.get_node_index(layer, node)] = rng.gen();
+            for i in (0..self.layers.len() - 2).rev() {
+                self.layers[i]
+                    .calc_hidden_layer_node_values(&mut network_data, &self.layers[i + 1]);
+                self.layers[i].calc_gradients(&network_data)
             }
+
+            if !store_results {
+                continue;
+            }
+
+            let outputs = &network_data.activations[network_data.activations.len() - 1];
+            if max_idx(&data_point.correct_outputs) == max_idx(outputs) {
+                results.accuracy += 1.;
+            }
+
+            results.average_cost += Cost::function(&outputs, &data_point.correct_outputs)
         }
 
-        (weights, biases)
-    }
+        println!("\nLearning: \n{:#?}", &self.layers);
 
-    pub const fn calc_layer_indices() -> [(usize, usize); SIZES.len()] {
-        let mut arr = [(0, 0); SIZES.len()];
-        let mut i = 1;
-        while i < SIZES.len() {
-            // Biases
-            arr[i].0 = arr[i - 1].0 + SIZES[i - 1];
-            // Weights
-            if i == 1 {
-                arr[i].1 = 0;
-            } else {
-                arr[i].1 = arr[i - 1].1 + SIZES[i - 1] * SIZES[i - 2];
-            }
-            i += 1;
+        for layer in self.layers.iter_mut() {
+            layer.apply_gradients(learn_rate / len as f64, regularization, momentum);
         }
 
-        arr
-    }
+        if store_results {
+            println!("{}", results.average_cost);
+            results.accuracy /= len as f64;
+            results.average_cost /= len as f64;
+            return Some(results);
+        }
 
-    // No these aren't safe but ill be safe I promise 😇
-    #[inline]
-    pub fn get_node_index(&self, layer: usize, node: usize) -> usize {
-        self.layer_indices[layer].0 + node
-    }
-    #[inline]
-    pub fn get_weight_index(&self, layer: usize, node: usize, input: usize) -> usize {
-        // Where the layer starts   +  number of connections per node   * node index + input index
-        self.layer_indices[layer].1 + (SIZES[layer - 1]) * node + input
+        None
     }
 }

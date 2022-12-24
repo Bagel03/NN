@@ -1,53 +1,37 @@
-use super::sizes::*;
+pub struct Cost {}
 
-#[derive(Clone, Copy, Debug)]
-pub struct DataPoint<const SIZES: &'static [usize]>
-where
-    [(); idx(SIZES, 0)]:,
-    [(); outputs(SIZES)]:,
-{
-    pub inputs: [f64; idx(SIZES, 0)],
-    pub expected: [f64; outputs(SIZES)],
-}
+impl Cost {
+    pub fn function(generated_results: &Vec<f64>, correct_results: &Vec<f64>) -> f64 {
+        let mut sum = 0.;
 
-impl<const SIZES: &'static [usize]> DataPoint<SIZES>
-where
-    [(); idx(SIZES, 0)]:,
-    [(); outputs(SIZES)]:,
-{
-    pub fn new(inputs: [f64; idx(SIZES, 0)], expected: [f64; outputs(SIZES)]) -> DataPoint<SIZES> {
-        DataPoint::<SIZES> { inputs, expected }
-    }
-}
+        for i in 0..generated_results.len() {
+            let v = if correct_results[i] == 1. {
+                generated_results[i].ln()
+            } else {
+                (1. - generated_results[i]).ln()
+            };
 
-impl<const SIZES: &'static [usize]> super::Network<SIZES>
-where
-    [(); num_weights(SIZES)]:,
-    [(); num_nodes(SIZES)]:,
-    [(); SIZES.len()]:,
-    [(); idx(SIZES, 0)]:,
-    [(); outputs(SIZES)]:,
-{
-    pub fn cost(&self, data_point: DataPoint<SIZES>) -> f64 {
-        let outputs = self.calculate_outputs(data_point.inputs);
-        let mut cost = 0.;
-        for i in 0..outputs.len() {
-            let err = outputs[i] - data_point.expected[i];
-            cost += err * err;
+            if !v.is_nan() {
+                sum += v;
+            }
         }
 
-        cost
+        -sum
     }
+    pub fn derivative(generated_results: &Vec<f64>, correct_results: &Vec<f64>) -> Vec<f64> {
+        let mut derivatives = vec![0.; generated_results.len()];
 
-    pub fn cost_derivative(&self, actual_output: f64, expected_output: f64) -> f64 {
-        2. * (actual_output - expected_output)
-    }
+        for i in 0..generated_results.len() {
+            let correct = correct_results[i];
+            let generated = generated_results[i];
 
-    pub fn total_cost<const T: usize>(&self, data_points: [DataPoint<SIZES>; T]) -> f64 {
-        let mut total_cost = 0.;
-        for data_point in data_points {
-            total_cost += self.cost(data_point);
+            if generated == 0. || generated == 1. {
+                derivatives[i] = 0.;
+            } else {
+                derivatives[i] = (correct - generated) / (generated * (generated - 1.));
+            }
         }
-        total_cost / T as f64
+
+        derivatives
     }
 }

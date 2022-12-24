@@ -1,88 +1,50 @@
-#![feature(adt_const_params)]
-#![feature(generic_const_exprs)]
-#![feature(inherent_associated_types)]
-#![feature(const_for)]
-// #![feature(generic_arg_infer)]
-#![feature(const_mut_refs)]
-#![allow(incomplete_features)]
-
-use rand::Rng;
-
-use crate::network::{cost::DataPoint, *};
 mod activation;
 mod network;
 
-const LAYER_SIZES: &[usize] = &[2, 3, 2];
+use activation::Activation;
+use network::DataPoint;
+use rand::random;
+
+use crate::activation::{sigmoid::get_sigmoid, softmax::get_softmax};
+// use network::Network;
 
 fn main() {
-    std::env::set_var("RUST_BACKTRACE", "1");
+    let mut model = network::Network::new(vec![2, 4, 2, 2], get_sigmoid(), get_softmax());
 
-    let mut rng = rand::thread_rng();
+    println!("{:#?}", model.layers);
 
-    let mut training_data: [DataPoint<{ &LAYER_SIZES }>; 100] =
-        [DataPoint::new([0., 0.], [0., 0.]); 100];
-    for i in 0..training_data.len() {
-        let x = rng.gen();
-        let y = rng.gen();
-        let is_valid = if (x * y) < 0.25 { 1. } else { 0. };
-        training_data[i] = DataPoint::new([x, y], [is_valid, -is_valid + 1.]);
-    }
-    // let mut training_data: [DataPoint<{ &LAYER_SIZES }>; 100] = [DataPoint::new([0.], [0.]); 100];
-    // for i in 0..training_data.len() {
-    //     let x = (rng.gen::<f64>() - 0.1) / 2.;
-    //     training_data[i] = DataPoint::new([x], [(x + 0.1) * 2.]);
-    // }
+    let data = generate_data();
 
-    println!("POINT: {:#?}", training_data[0]);
+    print!("Starting...");
 
-    let mut network = Network::<{ &LAYER_SIZES }>::new();
-    println!(
-        "Start: {:?}",
-        network.calculate_outputs(training_data[0].inputs)
-    );
-    network.learn(training_data, 0.01);
+    let mut run = 0;
+    for i in 0..1 {
+        let run_data = model.train(&data, 1., 0.1, 0.9, true).unwrap();
 
-    for i in 0..100000 {
-        network.learn([training_data[0]], 10.);
-        if (i % 10000 == 0) {
-            print!(
-                "COST({}): {:.5}\t",
-                i / 10000,
-                network.total_cost(training_data)
-            );
-        }
+        print!(
+            "\rAccuracy: {}, Average Cost: {}  (Run {})",
+            run_data.accuracy, run_data.average_cost, run
+        );
+        run += 1;
     }
 
-    println!(
-        "End: {:?}",
-        network.calculate_outputs(training_data[0].inputs)
-    );
+    println!("\nDone...");
 
-    // println!("{:#?}", &network);
+    println!("{:#?}", model.layers);
+}
 
-    let original_cost = network.total_cost(training_data);
-    return;
-    // loop {
-    //     network.learn(training_data, 0.1);
+fn generate_data() -> Vec<DataPoint> {
+    let mut v = Vec::with_capacity(1000);
+    for i in 0..1000 {
+        let a = random::<f64>();
+        let b = random::<f64>();
+        let result = (1.5 * a - 0.75).powi(3) + (0.01 * a).powi(2) + 0.5;
+        let valid = ((result / b).floor() as f64).min(1.);
 
-    //     let cost = network.total_cost(training_data);
-
-    //     println!("{:.5}:  {}", original_cost, cost);
-    //     i += 1;
-
-    //     // if i > 100 {
-    //     //     break;
-    // }
-    // // }
-
-    // println!("{:#?}", &network);
-
-    // let res = (
-    //     network.calculate_all_with_weighted_inputs([1., 0.]),
-    //     network.calculate_outputs([1., 0.]),
-    //     // network.calculate_outputs([0., 1.]),
-    //     // network.calculate_outputs([1., 1.]),
-    // );
-    // println!("{:#?}, {:#?}", &res.0, res.1);
-    // println!("{:#?}", &network.total_cost(training_data))
+        v.push(DataPoint {
+            inputs: vec![a, b],
+            correct_outputs: vec![valid, -valid + 1.],
+        })
+    }
+    v
 }
