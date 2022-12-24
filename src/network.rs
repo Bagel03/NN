@@ -111,14 +111,11 @@ impl Network {
             results.average_cost += Cost::function(&outputs, &data_point.correct_outputs)
         }
 
-        println!("\nLearning: \n{:#?}", &self.layers);
-
         for layer in self.layers.iter_mut() {
             layer.apply_gradients(learn_rate / len as f64, regularization, momentum);
         }
 
         if store_results {
-            println!("{}", results.average_cost);
             results.accuracy /= len as f64;
             results.average_cost /= len as f64;
             return Some(results);

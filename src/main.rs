@@ -11,14 +11,12 @@ use crate::activation::{sigmoid::get_sigmoid, softmax::get_softmax};
 fn main() {
     let mut model = network::Network::new(vec![2, 4, 2, 2], get_sigmoid(), get_softmax());
 
-    println!("{:#?}", model.layers);
-
     let data = generate_data();
 
     print!("Starting...");
 
     let mut run = 0;
-    for i in 0..1 {
+    for i in 0..10000 {
         let run_data = model.train(&data, 1., 0.1, 0.9, true).unwrap();
 
         print!(
