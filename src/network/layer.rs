@@ -131,8 +131,6 @@ impl Layer {
             self.weight_momentum[i] =
                 self.weight_momentum[i] * momentum - self.weight_gradients[i] * learn_rate;
 
-            print!(":{}, ", self.weight_momentum[i]);
-
             self.weights[i] = self.weights[i] * weight_decay + self.weight_momentum[i];
             self.weight_gradients[i] = 0.;
         }

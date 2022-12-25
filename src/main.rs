@@ -27,8 +27,6 @@ fn main() {
     }
 
     println!("\nDone...");
-
-    println!("{:#?}", model.layers);
 }
 
 fn generate_data() -> Vec<DataPoint> {
