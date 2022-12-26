@@ -1,126 +1,154 @@
+// import { Activation } from "./network/activation.js";
+// import { Cost } from "./network/cost.js";
+// import { DataPointRunData } from "./network/data.js";
+// import { Layer } from "./network/layer.js";
+// import { maxIdx } from "./network/utils.js";
+
+use self::cost::Cost;
+use self::utils::*;
+use self::{data::DataPointRunData, layer::Layer};
+
+pub mod activation;
 pub mod cost;
 pub mod data;
 pub mod layer;
 pub mod utils;
-
-use data::DataPointRunData;
-use layer::Layer;
-
-use crate::activation::Activation;
-
-use self::{cost::Cost, utils::max_idx};
-
-#[derive(Debug)]
-pub struct DataPoint {
-    pub inputs: Vec<f64>,
-    pub correct_outputs: Vec<f64>,
-}
-
-pub struct LearnResults {
-    pub accuracy: f64,
-    pub average_cost: f64,
-}
-
 #[derive(Debug)]
 pub struct Network {
-    pub layer_sizes: Vec<usize>,
-    pub layers: Vec<Layer>,
-    pub total_nodes: usize,
+    layers: Vec<Layer>,
+    layerSizes: Vec<usize>,
+    num_layers: usize,
 }
 
 impl Network {
-    pub fn new(
-        layer_sizes: Vec<usize>,
-        activation: Activation,
-        output_activation: Activation,
-    ) -> Network {
-        let mut layers = Vec::with_capacity(layer_sizes.len() - 1);
-
-        let mut total_nodes = 0;
-        for i in 1..layer_sizes.len() {
-            layers.push(Layer::new(
-                i - 1,
-                layer_sizes[i - 1],
-                layer_sizes[i],
+    pub fn new(layerSizes: &[usize]) -> Network {
+        let mut network = Network {
+            layers: vec![],
+            layerSizes: layerSizes[1..].to_vec(),
+            num_layers: layerSizes.len() - 1,
+        };
+        for i in 1..layerSizes.len() {
+            // (let i = 1; i < layerSizes.length; i++) {
+            let activation = if i == layerSizes.len() - 1 {
+                activation::SoftMax
+            } else {
+                activation::Sigmoid
+            };
+            network.layers.push(Layer::new(
+                layerSizes[i],
+                layerSizes[i - 1],
                 activation,
-            ));
-            total_nodes += layer_sizes[i];
+                i - 1,
+            ))
         }
 
-        layers.last_mut().unwrap().activation = output_activation;
-
-        Network {
-            layers,
-            layer_sizes,
-            total_nodes,
-        }
+        network
+        // self.layers = hiddenLayerSizes.map(
+        //     (nodes, i) =>
+        //         new Layer(
+        //             nodes,
+        //             i == 0 ? inputs : hiddenLayerSizes[i - 1],
+        //             i == hiddenLayerSizes.length - 1
+        //                 ? Activation.SoftMax
+        //                 : Activation.Sigmod,
+        //             i
+        //         )
+        // );
     }
 
-    pub fn get_output_layer(&mut self) -> &mut Layer {
-        self.layers.last_mut().unwrap()
-    }
-
-    pub fn feed_forward(&self, inputs: &Vec<f64>) -> DataPointRunData {
-        let mut data = DataPointRunData::new(&self, inputs.to_owned());
-        let data_ref = &mut data;
-
+    pub fn feedForward(&self, inputs: Vec<f64>) -> DataPointRunData {
+        let mut data = DataPointRunData::new(inputs, &self);
         for layer in self.layers.iter() {
-            layer.feed_forward(data_ref);
+            //(const layer of self.layers) {
+            layer.feedForward(&mut data);
         }
-
-        data
+        return data;
     }
 
+    // trains, returns if guess was correct
+    // pub fn trainOnSinglePoint(&mut self,inputs: Vec<f64>, correctOutputs: Vec<f64>) -> boolean {
+    //     let data = self.feedForward(inputs)
+    //     const guess = maxIdx(data.activations[data.activations.length - 1]);
+
+    //     self.layers[self.layers.length - 1].calcOutputNodeValues(data, correctOutputs);
+    //     self.layers[self.layers.length - 1].calcGradients(data);
+
+    //     for i in 0..self(let i = self.layers.length - 2; i >= 0; i--) {
+    //         self.layers[i].calcHiddenLayerNodeValues(data, self.layers[i + 1]);
+    //         self.layers[i].calcGradients(data);
+    //     }
+
+    //     return guess == maxIdx(correctOutputs);
+    // }
+
+    // (inputs, correctOutputs)[]
+    // (accuracy, cost)
     pub fn train(
         &mut self,
-        data_points: &Vec<DataPoint>,
-        learn_rate: f64,
-        regularization: f64,
-        momentum: f64,
-        store_results: bool,
-    ) -> Option<LearnResults> {
-        // Have to keep this
-        let len = data_points.len();
-        let mut results = LearnResults {
-            accuracy: 0.,
-            average_cost: 0.,
-        };
+        dataPoints: Vec<(Vec<f64>, Vec<f64>)>,
+        learnRate: f64,
+        storeData: bool,
+    ) -> (f64, f64) {
+        let mut correct = 0;
+        let mut totalCost = 0.;
 
-        for data_point in data_points {
-            let mut network_data = self.feed_forward(&data_point.inputs);
+        let num_points = dataPoints.len();
 
-            self.get_output_layer()
-                .calc_output_node_values(&mut network_data, &data_point.correct_outputs);
-            self.get_output_layer().calc_gradients(&network_data);
+        for dataPoint in dataPoints {
+            //(const [inputs, correctOutputs] of dataPoints) {
+            let (inputs, correctOutputs) = dataPoint;
+            // println!("Correct: {:?}", correctOutputs);
+
+            let mut data = self.feedForward(inputs);
+
+            self.layers[self.num_layers - 1].calcOutputNodeValues(&mut data, &correctOutputs);
+            self.layers[self.num_layers - 1].calcGradients(&mut data);
 
             for i in (0..self.layers.len() - 2).rev() {
-                self.layers[i]
-                    .calc_hidden_layer_node_values(&mut network_data, &self.layers[i + 1]);
-                self.layers[i].calc_gradients(&network_data)
+                //(let i = self.layers.length - 2; i >= 0; i--) {
+                self.layers[i].calcHiddenLayerNodeValues(&mut data, &self.layers[i + 1]);
+                self.layers[i].calcGradients(&mut data);
             }
 
-            if !store_results {
+            if !storeData {
                 continue;
             }
 
-            let outputs = &network_data.activations[network_data.activations.len() - 1];
-            if max_idx(&data_point.correct_outputs) == max_idx(outputs) {
-                results.accuracy += 1.;
+            let guess = maxIdx(&data.activations[data.activations.len() - 1]);
+            if guess == maxIdx(&correctOutputs) {
+                correct += 1;
             }
 
-            results.average_cost += Cost::function(&outputs, &data_point.correct_outputs)
+            // println!("{:?}", data.weightedSums[data.weightedSums.len() - 1]);
+            // println!("{:?} ", data.activations[data.activations.len() - 1]);
+
+            totalCost += Cost::function(
+                &data.activations[data.activations.len() - 1],
+                &correctOutputs,
+            );
+
+            // if (self.trainOnSinglePoint(inputs, correctOutputs)) correct++;
         }
 
         for layer in self.layers.iter_mut() {
-            layer.apply_gradients(learn_rate / len as f64, regularization, momentum);
+            // (const layer of self.layers) {
+            layer.applyGradients(learnRate / num_points as f64, 0.1, 0.9)
         }
 
-        if store_results {
-            results.accuracy /= len as f64;
-            results.average_cost /= len as f64;
-            return Some(results);
-        }
-
-        None
+        return (
+            correct as f64 / num_points as f64,
+            totalCost / num_points as f64,
+        );
     }
+
+    // totalCost(dataPoints: [inputs: Vec<f64>, correctOutputs: Vec<f64>][]) {
+    //     const results = dataPoints.map((point) => self.feedForward(point[0]));
+
+    //     const totalCost = results.reduce(
+    //         (prev, curr, i) =>
+    //             prev + Cost.function(curr.activations[curr.activations.length - 1], dataPoints[i][1]),
+    //         0
+    //     );
+    //     return totalCost / dataPoints.length;
+    // }
 }

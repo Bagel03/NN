@@ -1,46 +1,43 @@
-mod activation;
-mod network;
+#![allow(non_snake_case)]
+#![allow(non_upper_case_globals)]
+pub mod network;
 
-use activation::Activation;
-use network::DataPoint;
-use rand::random;
+use std::f64::consts::PI;
 
-use crate::activation::{sigmoid::get_sigmoid, softmax::get_softmax};
-// use network::Network;
-
+use network::Network;
 fn main() {
-    let mut model = network::Network::new(vec![2, 4, 2, 2], get_sigmoid(), get_softmax());
+    let mut NN = Network::new(&[2, 4, 2, 2]);
 
-    let data = generate_data();
-
+    let data = generateData();
+    println!("{:?}", data);
     print!("Starting...");
-
-    let mut run = 0;
-    for i in 0..10000 {
-        let run_data = model.train(&data, 1., 0.1, 0.9, true).unwrap();
-
-        print!(
-            "\rAccuracy: {}, Average Cost: {}  (Run {})",
-            run_data.accuracy, run_data.average_cost, run
-        );
-        run += 1;
+    for i in 0..300 {
+        let (accuracy, cost) = NN.train(data.clone(), 1., true);
+        print!("\rRUN {}:  Acc: {:.5}, Cost: {:.5}", i, accuracy, cost);
     }
 
-    println!("\nDone...");
+    println!();
+    println!("{:#?}", NN);
 }
 
-fn generate_data() -> Vec<DataPoint> {
-    let mut v = Vec::with_capacity(1000);
-    for i in 0..1000 {
-        let a = random::<f64>();
-        let b = random::<f64>();
-        let result = (1.5 * a - 0.75).powi(3) + (0.01 * a).powi(2) + 0.5;
-        let valid = ((result / b).floor() as f64).min(1.);
+fn isValid(a: f64, b: f64) -> bool {
+    (2. * PI * a).cos() / 2. + 0.4 > b
+}
 
-        v.push(DataPoint {
-            inputs: vec![a, b],
-            correct_outputs: vec![valid, -valid + 1.],
-        })
+fn generateData() -> Vec<(Vec<f64>, Vec<f64>)> {
+    let mut data: Vec<(Vec<f64>, Vec<f64>)> = vec![];
+
+    for _i in 0..1000 {
+        let a = rand::random::<f64>();
+        let b = rand::random::<f64>();
+
+        let inputs = vec![a, b];
+        if (isValid(a, b)) {
+            data.push((inputs, vec![1., 0.]));
+        } else {
+            data.push((inputs, vec![0., 1.]));
+        }
     }
-    v
+
+    data
 }

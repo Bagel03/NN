@@ -1,34 +1,31 @@
-use super::Network;
+use super::{layer::Layer, Network};
 
-#[derive(Debug)]
 pub struct DataPointRunData {
-    pub inputs: Vec<f64>,
-
     pub activations: Vec<Vec<f64>>,
-    pub weighted_sums: Vec<Vec<f64>>,
-
-    pub node_values: Vec<Vec<f64>>,
+    pub weightedSums: Vec<Vec<f64>>,
+    pub nodeValues: Vec<Vec<f64>>,
+    pub inputs: Vec<f64>,
 }
 
 impl DataPointRunData {
-    pub fn new(network: &Network, inputs: Vec<f64>) -> DataPointRunData {
-        let mut data = DataPointRunData {
+    pub fn new(inputs: Vec<f64>, network: &Network) -> DataPointRunData {
+        let mut layer = DataPointRunData {
             inputs,
-            activations: Vec::with_capacity(network.total_nodes),
-            weighted_sums: Vec::with_capacity(network.total_nodes),
-            node_values: Vec::with_capacity(network.total_nodes),
+            weightedSums: vec![],
+            nodeValues: vec![],
+            activations: vec![],
         };
 
-        for i in 1..network.layer_sizes.len() {
-            data.activations.push(vec![0.; network.layer_sizes[i]]);
-            data.weighted_sums.push(vec![0.; network.layer_sizes[i]]);
-            data.node_values.push(vec![0.; network.layer_sizes[i]]);
+        for i in 0..network.layerSizes.len() {
+            //(let i = 0; i < network.layerSizes.length; i++) {
+            layer.activations.push(vec![0.; network.layerSizes[i]]);
+            layer.weightedSums.push(vec![0.; network.layerSizes[i]]);
+            layer.nodeValues.push(vec![0.; network.layerSizes[i]]);
+
+            // this.activations.push(new Array(network.layerSizes[i]).fill(0));
+            // this.weightedSums.push(new Array(network.layerSizes[i]).fill(0));
+            // this.nodeValues.push(new Array(network.layerSizes[i]).fill(0));
         }
-
-        data
-    }
-
-    pub fn outputs(&self) -> &Vec<f64> {
-        self.activations.last().unwrap()
+        layer
     }
 }

@@ -1,146 +1,201 @@
-use std::f64::consts::PI;
-
-use super::{cost::Cost, data::DataPointRunData};
-use crate::activation::Activation;
-use rand::random;
-
+use super::{
+    activation::Activation,
+    cost::Cost,
+    data::DataPointRunData,
+    utils::{arrFromFunc, randomInNormalDistribution},
+};
 #[derive(Debug)]
+
 pub struct Layer {
-    pub idx: usize,
+    nodes: usize,
+    inputs: usize,
 
-    pub inputs: usize,
-    pub nodes: usize,
+    idx: usize,
+    activation: Activation,
 
-    pub weights: Vec<f64>,
-    pub biases: Vec<f64>,
+    weights: Vec<f64>,
+    biases: Vec<f64>,
 
-    pub weight_gradients: Vec<f64>,
-    pub bias_gradients: Vec<f64>,
+    weightGradients: Vec<f64>,
+    biasGradients: Vec<f64>,
 
-    pub weight_momentum: Vec<f64>,
-    pub bias_momentum: Vec<f64>,
-
-    pub activation: Activation,
+    weightVelocities: Vec<f64>,
+    biasVelocities: Vec<f64>,
 }
 
 impl Layer {
-    pub fn new(idx: usize, inputs: usize, nodes: usize, activation: Activation) -> Layer {
+    pub fn new(nodes: usize, inputs: usize, activation: Activation, idx: usize) -> Layer {
         let mut layer = Layer {
-            idx,
-            inputs,
             nodes,
-            weights: vec![0.; inputs * nodes],
-            biases: vec![0.; nodes],
-            weight_gradients: vec![0.; inputs * nodes],
-            bias_gradients: vec![0.; nodes],
-            weight_momentum: vec![0.; inputs * nodes],
-            bias_momentum: vec![0.; nodes],
+            inputs,
+            idx,
             activation,
+            weights: vec![],
+            biases: vec![],
+
+            weightGradients: vec![0.; nodes * inputs],
+            biasGradients: vec![0.; nodes],
+            biasVelocities: vec![0.; nodes],
+            weightVelocities: vec![0.; nodes * inputs],
         };
 
-        // Setup weights
-        for i in 0..nodes * inputs {
-            let x = random::<f64>();
-            let y = random::<f64>();
-            layer.weights[i] =
-                ((-2. * x.ln()).sqrt() * (2. * PI * y).cos()) / (inputs as f64).sqrt();
-        }
+        layer.biases = arrFromFunc(nodes, |_| rand::random::<f64>() - 0.5);
 
-        for i in 0..nodes {
-            layer.biases[i] = random::<f64>() - 0.5;
+        let sqrt = (inputs as f64).sqrt();
+        for i in 0..nodes * inputs {
+            let y = randomInNormalDistribution(1.0, 0.0);
+            layer.weights.push(y / sqrt);
+            //(let i = 0; i < len; i++) {
+            // console.log(a[i]);
         }
 
         layer
+
+        // self.weightGradients = new Array(nodes * inputs).fill(0);
+        // self.biasGradients = new Array(nodes).fill(0);
+        // self.biasVelocities = new Array(nodes).fill(0);
+        // self.weightVelocities = new Array(nodes * inputs).fill(0);
     }
 
-    fn get_weight_idx(&self, node: usize, input: usize) -> usize {
-        input * self.nodes + node
+    fn getWeightIdx(&self, node: usize, input: usize) -> usize {
+        return node * self.inputs + input;
     }
 
-    fn get_weight(&self, node: usize, input: usize) -> f64 {
-        self.weights[self.get_weight_idx(node, input)]
+    fn getWeight(&self, node: usize, input: usize) -> f64 {
+        return self.weights[self.getWeightIdx(node, input)];
     }
 
-    pub fn feed_forward(&self, data: &mut DataPointRunData) {
-        let inputs = if self.idx == 0 {
+    pub fn feedForward(&self, data: &mut DataPointRunData) {
+        let inputs = if (self.idx == 0) {
             &data.inputs
         } else {
             &data.activations[self.idx - 1]
         };
 
-        let weighted_sums = &mut data.weighted_sums[self.idx];
+        for node in 0..self.nodes {
+            // (let node = 0; node < self.nodes; node++) {
+            let mut sum = self.biases[node];
 
-        for i in 0..self.nodes {
-            weighted_sums[i] = self.biases[i];
-            for j in 0..self.inputs {
-                weighted_sums[i] += inputs[j] * self.get_weight(i, j);
+            for input in 0..self.inputs {
+                // (let input = 0; input < self.inputs; input++) {
+                sum += inputs[input] * self.getWeight(node, input);
             }
+
+            data.weightedSums[self.idx][node] = sum;
         }
 
-        // Do activations
-        (self.activation.function)(weighted_sums, &mut data.activations[self.idx]);
+        (self.activation.function)(
+            &data.weightedSums[self.idx],
+            &mut data.activations[self.idx],
+        );
     }
 
-    pub fn calc_output_node_values(
-        &mut self,
-        data: &mut DataPointRunData,
-        correct_results: &Vec<f64>,
-    ) {
-        let cost_derivatives = Cost::derivative(&data.activations[self.idx], &correct_results);
-
-        let activation_derivatives = (self.activation.derivative)(&data.weighted_sums[self.idx]);
+    pub fn calcOutputNodeValues(&self, data: &mut DataPointRunData, correctResults: &Vec<f64>) {
+        let costDerivatives = Cost::derivative(&data.activations[self.idx], correctResults);
+        let activationDerivatives = (self.activation.derivative)(&data.weightedSums[self.idx]);
 
         for i in 0..self.nodes {
-            data.node_values[self.idx][i] = cost_derivatives[i] * activation_derivatives[i];
+            //(let i = 0; i < self.nodes; i++) {
+            data.nodeValues[self.idx][i] = costDerivatives[i] * activationDerivatives[i];
         }
+
+        // data.nodeValues[self.idx] = costDerivatives.map(
+        //     (c, i) => c * activationDerivatives[i]
+        // );
     }
 
-    pub fn calc_hidden_layer_node_values(&self, data: &mut DataPointRunData, next_layer: &Layer) {
-        let activation_derivatives = (self.activation.derivative)(&data.weighted_sums[self.idx]);
+    pub fn calcHiddenLayerNodeValues(&self, data: &mut DataPointRunData, nextLayer: &Layer) {
+        let activationDerivatives = (self.activation.derivative)(&data.weightedSums[self.idx]);
 
         for node in 0..self.nodes {
+            // (let node = 0; node < self.nodes; node++) {
             let mut sum = 0.;
-            for output in 0..data.node_values[self.idx + 1].len() {
-                sum += next_layer.get_weight(output, node) * data.node_values[self.idx + 1][output];
+            for output in 0..nextLayer.nodes {
+                //(let output = 0; output < nextLayer.nodes; output++) {
+                sum += nextLayer.getWeight(output, node) * data.nodeValues[self.idx + 1][output]
             }
 
-            data.node_values[self.idx][node] = sum * activation_derivatives[node];
+            data.nodeValues[self.idx][node] = activationDerivatives[node] * sum;
         }
+
+        // data.nodeValues[self.idx] = activationDerivatives.map(
+        //     (activationDerivative, node) => {
+        //         return (
+        //             activationDerivative *
+        //             data.nodeValues[self.idx + 1].reduce(
+        //                 (prev, outputNodeValue, output) =>
+        //                     prev +
+        //                     nextLayer.getWeight(output, node) * outputNodeValue, 0
+        //             )
+        //         );
+        //     }
+        // );
     }
 
-    pub fn calc_gradients(&mut self, data: &DataPointRunData) {
-        let inputs = if self.idx == 0 {
+    pub fn calcGradients(&mut self, data: &DataPointRunData) {
+        let inputs = if (self.idx == 0) {
             &data.inputs
         } else {
             &data.activations[self.idx - 1]
         };
 
         for node in 0..self.nodes {
-            for input in 0..inputs.len() {
-                self.weight_gradients[input * self.nodes + node] +=
-                    data.node_values[self.idx][node] * inputs[input]
+            //(let node = 0; node < self.nodes; node++) {
+            for input in 0..self.inputs {
+                // (let input = 0; input < self.inputs; input++) {
+                self.weightGradients[node * self.inputs + input /*self.getWeightIdx(node, input)*/] +=
+                    data.nodeValues[self.idx][node] * inputs[input];
             }
-            self.bias_gradients[node] += data.node_values[self.idx][node];
+
+            self.biasGradients[node] += data.nodeValues[self.idx][node];
         }
+        // data.nodeValues[self.idx].forEach((nodeValue, node) => {
+        //     inputs.forEach((inputValue, input) => {
+        //         self.weightGradients[self.getWeightIdx(node, input)] +=
+        //             nodeValue * inputValue;
+        //     });
+        //     self.biasGradients[node] += nodeValue;
+        // });
     }
 
-    pub fn apply_gradients(&mut self, learn_rate: f64, regularization: f64, momentum: f64) {
-        let weight_decay = 1. - regularization * learn_rate;
+    pub fn applyGradients(&mut self, learnRate: f64, regularization: f64, momentum: f64) {
+        let weightDecay = 1. - regularization * learnRate;
 
         for i in 0..(self.nodes * self.inputs) {
-            self.weight_momentum[i] =
-                self.weight_momentum[i] * momentum - self.weight_gradients[i] * learn_rate;
+            //(let i = 0; i < self.nodes * self.inputs; i++) {
 
-            self.weights[i] = self.weights[i] * weight_decay + self.weight_momentum[i];
-            self.weight_gradients[i] = 0.;
+            self.weightVelocities[i] =
+                self.weightVelocities[i] * momentum - self.weightGradients[i] * learnRate;
+            self.weights[i] = self.weights[i] * weightDecay + self.weightVelocities[i];
+            self.weightGradients[i] = 0.;
         }
 
-        for j in 0..self.nodes {
-            self.bias_momentum[j] =
-                self.bias_momentum[j] * momentum - self.bias_gradients[j] * learn_rate;
+        // self.weightGradients.forEach((weightCost, i) => {
+        //     self.weightVelocities[i] =
+        //         self.weightVelocities[i] * momentum -
+        //         self.weightGradients[i] * learnRate;
+        //     self.weights[i] =
+        //         self.weights[i] * weightDecay + self.weightVelocities[i];
+        //     self.weightGradients[i] = 0;
+        // });
 
-            self.biases[j] += self.bias_gradients[j];
-            self.bias_gradients[j] = 0.;
+        for i in 0..self.nodes {
+            // (let i = 0; i < self.nodes; i++) {
+
+            self.biasVelocities[i] =
+                self.biasVelocities[i] * momentum - self.biasGradients[i] * learnRate;
+            self.biases[i] += self.biasVelocities[i];
+
+            self.biasGradients[i] = 0.;
         }
+
+        // self.biasGradients.forEach((biasCost, i) => {
+        //     self.biasVelocities[i] =
+        //         self.biasVelocities[i] * momentum -
+        //         self.biasGradients[i] * learnRate;
+        //     self.biases[i] += self.biasVelocities[i];
+
+        //     self.biasGradients[i] = 0;
+        // });
     }
 }
